@@ -51,7 +51,6 @@ feature_names = [
 url = st.text_input("Enter URL to Analyze:")
 
 if url:
-
     try:
         features = extract_features(url)
         features_array = np.array(features).reshape(1, -1)
@@ -65,7 +64,6 @@ if url:
         safe_prob = float(probabilities[0])
         phishing_prob = float(probabilities[1])
 
-        # Proper confidence formula
         confidence = abs(phishing_prob - safe_prob) * 100
 
         st.subheader("🔎 Prediction Result")
@@ -113,57 +111,55 @@ if url:
         st.pyplot(fig2)
 
         # ----------------------------
-        # SHAP EXPLANATION (FIXED + CLOUD SAFE)
-        
-st.subheader("🧠 SHAP Explanation")
+        # SHAP EXPLANATION (FIXED + SAFE)
+        # ----------------------------
+        st.subheader("🧠 SHAP Explanation")
 
-explainer = shap.TreeExplainer(rf)
-shap_values = explainer.shap_values(features_array)
+        explainer = shap.TreeExplainer(rf)
+        shap_values = explainer.shap_values(features_array)
+        shap_values = np.array(shap_values)
 
-# Convert to numpy safely
-shap_values = np.array(shap_values)
+        if shap_values.ndim == 3:
+            shap_vals = shap_values[0, 0, :]
+        elif shap_values.ndim == 2:
+            shap_vals = shap_values[0]
+        elif shap_values.ndim == 1:
+            shap_vals = shap_values
+        else:
+            shap_vals = shap_values.flatten()
 
-# Dynamic shape handling
-if shap_values.ndim == 3:
-    # (classes, samples, features)
-    shap_vals = shap_values[0, 0, :]
-elif shap_values.ndim == 2:
-    # (samples, features)
-    shap_vals = shap_values[0]
-elif shap_values.ndim == 1:
-    shap_vals = shap_values
-else:
-    shap_vals = shap_values.flatten()
+        shap_vals = np.array(shap_vals).flatten()
 
-shap_vals = np.array(shap_vals).flatten()
+        if len(shap_vals) == len(feature_names):
 
-# Safety check
-if len(shap_vals) == len(feature_names):
+            shap_df = pd.DataFrame({
+                "Feature": feature_names,
+                "Impact": shap_vals
+            })
 
-    shap_df = pd.DataFrame({
-        "Feature": feature_names,
-        "Impact": shap_vals
-    })
+            shap_df["AbsImpact"] = np.abs(shap_df["Impact"])
+            shap_df = shap_df.sort_values(by="AbsImpact", ascending=True)
 
-    shap_df["AbsImpact"] = np.abs(shap_df["Impact"])
-    shap_df = shap_df.sort_values(by="AbsImpact", ascending=True)
+            st.dataframe(
+                shap_df[["Feature", "Impact"]]
+                .style.format({"Impact": "{:.5f}"})
+            )
 
-    st.dataframe(
-        shap_df[["Feature", "Impact"]]
-        .style.format({"Impact": "{:.5f}"})
-    )
+            fig3, ax3 = plt.subplots()
+            ax3.barh(shap_df["Feature"], shap_df["Impact"])
+            ax3.set_xlabel("SHAP Impact")
+            ax3.set_title("Feature Contribution to Prediction")
+            st.pyplot(fig3)
 
-    fig3, ax3 = plt.subplots()
-    ax3.barh(shap_df["Feature"], shap_df["Impact"])
-    ax3.set_xlabel("SHAP Impact")
-    ax3.set_title("Feature Contribution to Prediction")
-    st.pyplot(fig3)
+        else:
+            st.warning("SHAP explanation unavailable.")
 
-else:
-    st.warning("SHAP explanation unavailable.")
+    except Exception as e:
+        st.error("Error occurred during prediction.")
+        st.write(e)
 
 # ----------------------------
-# CONFUSION MATRIX (DEMO)
+# CONFUSION MATRIX (STATIC DEMO)
 # ----------------------------
 st.subheader("📊 Model Confusion Matrix")
 

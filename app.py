@@ -123,11 +123,14 @@ if url:
 
             # Robust handling for binary classifier outputs
             if isinstance(shap_values, list):
-                # List of arrays (old SHAP versions)
+                # Old SHAP versions: list of arrays [class0, class1]
                 shap_vals = shap_values[prediction][0]  # predicted class, first sample
             else:
-                # Single array (new SHAP versions)
+                # New SHAP versions: single array
                 shap_vals = shap_values[0]  # first sample
+                # If concatenated for both classes
+                if shap_vals.size == 2 * len(feature_names):
+                    shap_vals = shap_vals[prediction * len(feature_names):(prediction+1)*len(feature_names)]
 
             shap_vals = shap_vals.flatten()
 

@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix
 
 # ----------------------------
 # PAGE CONFIG
@@ -52,6 +51,7 @@ url = st.text_input("Enter URL to Analyze:")
 
 if url:
     try:
+        # Extract features and reshape
         features = extract_features(url)
         features_array = np.array(features).reshape(1, -1)
 
@@ -65,6 +65,7 @@ if url:
         phishing_prob = float(probabilities[1])
         confidence = abs(phishing_prob - safe_prob) * 100
 
+        # Display prediction
         st.subheader("🔎 Prediction Result")
         if prediction == 1:
             st.error("⚠️ Phishing Website Detected")
@@ -95,7 +96,7 @@ if url:
         # ----------------------------
         # 2️⃣ FEATURE IMPORTANCE
         # ----------------------------
-        st.subheader("📈 Model Feature Importance")
+        st.subheader("📈 Global Feature Importance")
         importance_df = pd.DataFrame({
             "Feature": feature_names,
             "Importance": rf.feature_importances_
@@ -140,44 +141,35 @@ if url:
         st.pyplot(fig4)
 
         # ----------------------------
-        # 5️⃣ HEATMAP
+        # 5️⃣ DYNAMIC HEATMAP
         # ----------------------------
         st.subheader("🔥 Feature Contribution Heatmap")
-        contrib_df_plot = contrib_df.set_index("Feature").T
+        # Normalize contributions for heatmap
+        contrib_norm = contribution / (np.max(np.abs(contribution)) + 1e-6)
+        heatmap_df = pd.DataFrame(contrib_norm.reshape(1,-1), columns=feature_names)
+
         fig5, ax5 = plt.subplots()
-        sns.heatmap(contrib_df_plot, annot=True, cmap="RdYlGn_r", cbar=True, ax=ax5)
-        ax5.set_title("Feature Contribution Heatmap")
+        sns.heatmap(heatmap_df, annot=True, cmap="RdYlGn_r", cbar=True, ax=ax5)
+        ax5.set_title("Dynamic Feature Contribution Heatmap")
         st.pyplot(fig5)
 
         # ----------------------------
         # 6️⃣ DYNAMIC CONFUSION MATRIX
         # ----------------------------
-        st.subheader("📊 Confusion Matrix (Demo)")
-        # Auto actual label for demo: assume opposite of prediction
-        actual_label = st.selectbox("Select actual label for demo (optional):", ["Auto", "Safe", "Phishing"])
-        if actual_label == "Safe":
-            actual = 0
-        elif actual_label == "Phishing":
-            actual = 1
-        else:
-            # Auto mode: assume "actual" = opposite of predicted, just for demo
-            actual = 0 if prediction == 1 else 1
+        st.subheader("📊 Confusion Matrix (Dynamic)")
 
-        cm_demo = np.zeros((2,2), dtype=int)
-        cm_demo[actual, prediction] = 1
+        # For single URL, show probabilities in matrix
+        cm_dynamic = np.array([
+            [safe_prob, 0],
+            [0, phishing_prob]
+        ])
 
         fig_cm, ax_cm = plt.subplots()
-        ax_cm.imshow(cm_demo, cmap="Blues")
-        ax_cm.set_xticks([0,1])
-        ax_cm.set_yticks([0,1])
-        ax_cm.set_xticklabels(["Safe","Phishing"])
-        ax_cm.set_yticklabels(["Safe","Phishing"])
-        for i in range(2):
-            for j in range(2):
-                ax_cm.text(j,i,cm_demo[i,j],ha="center",va="center",fontsize=14)
+        sns.heatmap(cm_dynamic, annot=True, fmt=".2f", cmap="Blues",
+                    xticklabels=["Safe","Phishing"], yticklabels=["Safe","Phishing"], ax=ax_cm)
         ax_cm.set_xlabel("Predicted")
-        ax_cm.set_ylabel("Actual")
-        ax_cm.set_title("Confusion Matrix (Demo)")
+        ax_cm.set_ylabel("Actual (Demo)")
+        ax_cm.set_title("Dynamic Confusion Matrix (Reflects Probabilities)")
         st.pyplot(fig_cm)
 
     except Exception as e:

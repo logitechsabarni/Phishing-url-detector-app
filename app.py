@@ -16,6 +16,8 @@ st.title("🔐 AI-Based Phishing URL Detection System")
 # LOAD MODEL
 # ----------------------------
 rf = joblib.load("phishing_rf_model.pkl")
+st.write("Model expects features:", rf.n_features_in_)
+st.write("Feature importance length:", len(rf.feature_importances_))
 
 # ----------------------------
 # FEATURE EXTRACTION (9 FEATURES ONLY)

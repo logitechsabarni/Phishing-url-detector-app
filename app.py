@@ -18,7 +18,8 @@ st.title("🔐 AI-Based Phishing URL Detection System")
 rf = joblib.load("phishing_rf_model.pkl")
 
 # ----------------------------
-# FEATURE EXTRACTION (⚠ MUST MATCH TRAINING)
+# FEATURE EXTRACTION
+# ⚠ MUST MATCH TRAINING FEATURES
 # ----------------------------
 def extract_features(url):
     return [
@@ -31,6 +32,7 @@ def extract_features(url):
         url.count("="),
         url.count("http"),
         1 if "https" in url else 0,
+        sum(c.isdigit() for c in url),
     ]
 
 feature_names = [
@@ -43,6 +45,7 @@ feature_names = [
     "= Count",
     "HTTP Count",
     "HTTPS Present",
+    "Digit Count",
 ]
 
 # ----------------------------
@@ -62,10 +65,9 @@ if url:
         prediction = rf.predict(features_array)[0]
         probabilities = rf.predict_proba(features_array)[0]
 
-        safe_prob = float(probabilities[0])
         phishing_prob = float(probabilities[1])
+        safe_prob = float(probabilities[0])
 
-        # 🔥 Proper Confidence Formula
         confidence = abs(phishing_prob - safe_prob) * 100
 
         st.subheader("🔎 Prediction Result")
@@ -75,17 +77,11 @@ if url:
         else:
             st.success("✅ Safe Website")
 
-        # ----------------------------
-        # PROBABILITY DISPLAY
-        # ----------------------------
         col1, col2 = st.columns(2)
-
         col1.metric("Safe Probability", f"{safe_prob*100:.2f}%")
         col2.metric("Phishing Probability", f"{phishing_prob*100:.2f}%")
 
-        st.metric("Model Confidence Level", f"{confidence:.2f}%")
-
-        st.markdown("---")
+        st.metric("Model Confidence", f"{confidence:.2f}%")
 
         # ----------------------------
         # PIE CHART
@@ -97,71 +93,83 @@ if url:
             [safe_prob, phishing_prob],
             labels=["Safe", "Phishing"],
             autopct='%1.1f%%',
-            colors=["#4CAF50", "#FF4B4B"],
-            explode=(0.05, 0.05),
-            textprops={'fontsize': 12}
+            colors=["green", "red"],
+            explode=(0.05, 0.05)
         )
         ax1.axis("equal")
         st.pyplot(fig1)
 
-        st.markdown("---")
-
         # ----------------------------
         # FEATURE IMPORTANCE
         # ----------------------------
-        st.subheader("📈 Model Feature Importance")
+        st.subheader("📈 Feature Importance")
 
         importance_df = pd.DataFrame({
             "Feature": feature_names,
             "Importance": rf.feature_importances_
         }).sort_values(by="Importance", ascending=True)
 
-        fig2, ax2 = plt.subplots(figsize=(8, 5))
+        fig2, ax2 = plt.subplots()
         ax2.barh(importance_df["Feature"], importance_df["Importance"])
         ax2.set_xlabel("Importance Score")
-        ax2.set_title("Random Forest Feature Importance")
         st.pyplot(fig2)
 
-        st.markdown("---")
-
         # ----------------------------
-        # SHAP EXPLANATION
+        # SHAP EXPLANATION (FIXED)
         # ----------------------------
-        st.subheader("🧠 SHAP Explanation (Why this prediction?)")
+        st.subheader("🧠 SHAP Explanation")
 
         explainer = shap.TreeExplainer(rf)
         shap_values = explainer.shap_values(features_array)
 
-        # Handle different SHAP versions safely
-        if isinstance(shap_values, list):
-            shap_vals = shap_values[1][0]
-        else:
+        # Convert safely to numpy
+        shap_values = np.array(shap_values)
+
+        # Handle all possible shapes
+        if shap_values.ndim == 3:
+            # (classes, samples, features)
+            shap_vals = shap_values[1, 0, :]
+        elif shap_values.ndim == 2:
+            # (samples, features)
             shap_vals = shap_values[0]
+        elif shap_values.ndim == 1:
+            shap_vals = shap_values
+        else:
+            shap_vals = shap_values.flatten()
 
-        shap_df = pd.DataFrame({
-            "Feature": feature_names,
-            "Impact on Prediction": shap_vals
-        }).sort_values(by="Impact on Prediction", key=abs, ascending=True)
+        shap_vals = shap_vals.flatten()
 
-        st.dataframe(shap_df.style.format({"Impact on Prediction": "{:.5f}"}))
+        # Safety check
+        if len(shap_vals) == len(feature_names):
 
-        fig3, ax3 = plt.subplots(figsize=(8, 5))
-        ax3.barh(shap_df["Feature"], shap_df["Impact on Prediction"])
-        ax3.set_title("SHAP Feature Impact")
-        ax3.set_xlabel("Impact Value")
-        st.pyplot(fig3)
+            shap_df = pd.DataFrame({
+                "Feature": feature_names,
+                "Impact": shap_vals
+            })
+
+            shap_df["Absolute Impact"] = np.abs(shap_df["Impact"])
+            shap_df = shap_df.sort_values(by="Absolute Impact", ascending=True)
+
+            st.dataframe(shap_df[["Feature", "Impact"]].style.format({"Impact": "{:.5f}"}))
+
+            fig3, ax3 = plt.subplots()
+            ax3.barh(shap_df["Feature"], shap_df["Impact"])
+            ax3.set_xlabel("SHAP Impact")
+            ax3.set_title("Feature Contribution to Prediction")
+            st.pyplot(fig3)
+
+        else:
+            st.warning("SHAP explanation unavailable due to shape mismatch.")
 
     except Exception as e:
         st.error("Error occurred during prediction.")
         st.write(e)
 
 # ----------------------------
-# CONFUSION MATRIX (Demo)
+# CONFUSION MATRIX (DEMO)
 # ----------------------------
-st.markdown("---")
-st.subheader("📊 Model Confusion Matrix (Evaluation Demo)")
+st.subheader("📊 Model Confusion Matrix")
 
-# Replace with real test data if available
 y_true = [0, 0, 1, 1, 0, 1, 0, 1]
 y_pred = [0, 0, 1, 1, 0, 1, 0, 1]
 
@@ -177,7 +185,7 @@ ax4.set_yticklabels(["Safe", "Phishing"])
 
 for i in range(2):
     for j in range(2):
-        ax4.text(j, i, cm[i, j], ha="center", va="center", color="black", fontsize=14)
+        ax4.text(j, i, cm[i, j], ha="center", va="center", fontsize=14)
 
 ax4.set_xlabel("Predicted")
 ax4.set_ylabel("Actual")

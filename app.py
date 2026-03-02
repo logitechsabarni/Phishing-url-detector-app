@@ -64,7 +64,6 @@ if url:
         safe_prob = float(probabilities[0])
         phishing_prob = float(probabilities[1])
 
-        # Confidence formula
         confidence = abs(phishing_prob - safe_prob) * 100
 
         st.subheader("🔎 Prediction Result")
@@ -114,7 +113,7 @@ if url:
         st.pyplot(fig2)
 
         # ----------------------------
-        # SHAP EXPLANATION (FINAL FIXED VERSION)
+        # SHAP EXPLANATION (ROBUST)
         # ----------------------------
         st.subheader("🧠 SHAP Explanation (Why this prediction?)")
 
@@ -122,34 +121,26 @@ if url:
             explainer = shap.Explainer(rf)
             shap_values = explainer(features_array)
 
-            # Convert to numpy safely
             shap_vals = np.array(shap_values.values)
 
-            # ---- HANDLE ALL POSSIBLE SHAP SHAPES ----
+            # Handle different shapes
             if shap_vals.ndim == 3:
-                # (samples, classes, features)
-                shap_vals = shap_vals[0]
-                # choose class 1 if binary classifier
-                if shap_vals.shape[0] == 2:
-                    shap_vals = shap_vals[1]
-                else:
-                    shap_vals = shap_vals[0]
+                shap_vals = shap_vals[0]          # first sample
+                shap_vals = shap_vals[prediction] # predicted class
             elif shap_vals.ndim == 2:
-                shap_vals = shap_vals[0]
+                shap_vals = shap_vals[0]          # first sample
             elif shap_vals.ndim == 1:
                 pass
 
-            # Force flatten to 1D
             shap_vals = shap_vals.flatten()
 
-            # Final safety check
-            if len(shap_vals) == len(feature_names):
-
+            if len(shap_vals) != len(feature_names):
+                st.warning(f"SHAP explanation unavailable (expected {len(feature_names)} features, got {len(shap_vals)}).")
+            else:
                 shap_df = pd.DataFrame({
                     "Feature": feature_names,
                     "Impact on Prediction": shap_vals
                 })
-
                 shap_df["Absolute Impact"] = np.abs(shap_df["Impact on Prediction"])
                 shap_df = shap_df.sort_values(by="Absolute Impact", ascending=True)
 
@@ -161,14 +152,12 @@ if url:
                 fig3, ax3 = plt.subplots()
                 ax3.barh(
                     shap_df["Feature"],
-                    shap_df["Impact on Prediction"]
+                    shap_df["Impact on Prediction"],
+                    color=np.where(shap_df["Impact on Prediction"]>0, "#e74c3c", "#2ecc71")
                 )
                 ax3.set_xlabel("SHAP Value Impact")
                 ax3.set_title("Feature Contribution for This URL")
                 st.pyplot(fig3)
-
-            else:
-                st.warning("SHAP explanation unavailable (feature mismatch).")
 
         except Exception as shap_error:
             st.warning("SHAP explanation could not be generated.")

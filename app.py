@@ -10,7 +10,7 @@ from sklearn.metrics import confusion_matrix
 # ----------------------------
 # LOAD MODEL
 # ----------------------------
-model = pickle.load(open("model (1).pkl", "rb"))
+model = pickle.load(open("phishing_rf_model.pkl", "rb"))
 
 # ----------------------------
 # FEATURE EXTRACTION (9 FEATURES)

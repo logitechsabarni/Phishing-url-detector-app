@@ -118,10 +118,11 @@ if url:
         st.subheader("🧠 SHAP Explanation (Why this prediction?)")
 
         try:
-            explainer = shap.TreeExplainer(rf)
+            # Use TreeExplainer with probability output to avoid 0-length SHAP
+            explainer = shap.TreeExplainer(rf, model_output="probability")
             shap_values = explainer.shap_values(features_array)
 
-            # Robust handling for binary classifier outputs
+            # Binary classification handling
             if isinstance(shap_values, list):
                 # Old SHAP versions: list of arrays [class0, class1]
                 shap_vals = shap_values[prediction][0]  # predicted class, first sample

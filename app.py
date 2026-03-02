@@ -108,7 +108,7 @@ if url:
         st.pyplot(fig2)
 
         # ----------------------------
-        # 3️⃣ FEATURE CONTRIBUTION BAR (Value × Importance)
+        # 3️⃣ FEATURE CONTRIBUTION BAR
         # ----------------------------
         st.subheader("🟦 Feature Contribution (Value × Importance)")
         contribution = features_array.flatten() * rf.feature_importances_
@@ -124,7 +124,7 @@ if url:
         st.pyplot(fig3)
 
         # ----------------------------
-        # 4️⃣ RADAR CHART OF FEATURE VALUES
+        # 4️⃣ RADAR CHART
         # ----------------------------
         st.subheader("🟢 Feature Profile (Radar Chart)")
         values = features_array.flatten()
@@ -140,7 +140,7 @@ if url:
         st.pyplot(fig4)
 
         # ----------------------------
-        # 5️⃣ HEATMAP OF FEATURE CONTRIBUTION
+        # 5️⃣ HEATMAP
         # ----------------------------
         st.subheader("🔥 Feature Contribution Heatmap")
         contrib_df_plot = contrib_df.set_index("Feature").T
@@ -153,12 +153,18 @@ if url:
         # 6️⃣ DYNAMIC CONFUSION MATRIX
         # ----------------------------
         st.subheader("📊 Confusion Matrix (Demo)")
-        # Let user select actual label for demo
-        actual_label = st.selectbox("Select actual label for demo:", ["Safe", "Phishing"])
-        actual = 0 if actual_label == "Safe" else 1
+        # Auto actual label for demo: assume opposite of prediction
+        actual_label = st.selectbox("Select actual label for demo (optional):", ["Auto", "Safe", "Phishing"])
+        if actual_label == "Safe":
+            actual = 0
+        elif actual_label == "Phishing":
+            actual = 1
+        else:
+            # Auto mode: assume "actual" = opposite of predicted, just for demo
+            actual = 0 if prediction == 1 else 1
 
         cm_demo = np.zeros((2,2), dtype=int)
-        cm_demo[actual, prediction] = 1  # predicted cell
+        cm_demo[actual, prediction] = 1
 
         fig_cm, ax_cm = plt.subplots()
         ax_cm.imshow(cm_demo, cmap="Blues")

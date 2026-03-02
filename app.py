@@ -18,8 +18,7 @@ st.title("🔐 AI-Based Phishing URL Detection System")
 rf = joblib.load("phishing_rf_model.pkl")
 
 # ----------------------------
-# FEATURE EXTRACTION
-# ⚠ MUST MATCH TRAINING FEATURES
+# FEATURE EXTRACTION (9 FEATURES ONLY)
 # ----------------------------
 def extract_features(url):
     return [
@@ -32,7 +31,6 @@ def extract_features(url):
         url.count("="),
         url.count("http"),
         1 if "https" in url else 0,
-        sum(c.isdigit() for c in url),
     ]
 
 feature_names = [
@@ -45,7 +43,6 @@ feature_names = [
     "= Count",
     "HTTP Count",
     "HTTPS Present",
-    "Digit Count",
 ]
 
 # ----------------------------
@@ -65,9 +62,10 @@ if url:
         prediction = rf.predict(features_array)[0]
         probabilities = rf.predict_proba(features_array)[0]
 
-        phishing_prob = float(probabilities[1])
         safe_prob = float(probabilities[0])
+        phishing_prob = float(probabilities[1])
 
+        # Proper confidence formula
         confidence = abs(phishing_prob - safe_prob) * 100
 
         st.subheader("🔎 Prediction Result")
@@ -102,7 +100,7 @@ if url:
         # ----------------------------
         # FEATURE IMPORTANCE
         # ----------------------------
-        st.subheader("📈 Feature Importance")
+        st.subheader("📈 Model Feature Importance")
 
         importance_df = pd.DataFrame({
             "Feature": feature_names,
@@ -115,31 +113,25 @@ if url:
         st.pyplot(fig2)
 
         # ----------------------------
-        # SHAP EXPLANATION (FIXED)
+        # SHAP EXPLANATION (FIXED + CLOUD SAFE)
         # ----------------------------
         st.subheader("🧠 SHAP Explanation")
 
         explainer = shap.TreeExplainer(rf)
         shap_values = explainer.shap_values(features_array)
 
-        # Convert safely to numpy
         shap_values = np.array(shap_values)
 
-        # Handle all possible shapes
+        # Handle different SHAP shapes safely
         if shap_values.ndim == 3:
-            # (classes, samples, features)
             shap_vals = shap_values[1, 0, :]
         elif shap_values.ndim == 2:
-            # (samples, features)
             shap_vals = shap_values[0]
-        elif shap_values.ndim == 1:
-            shap_vals = shap_values
         else:
             shap_vals = shap_values.flatten()
 
         shap_vals = shap_vals.flatten()
 
-        # Safety check
         if len(shap_vals) == len(feature_names):
 
             shap_df = pd.DataFrame({
@@ -147,19 +139,22 @@ if url:
                 "Impact": shap_vals
             })
 
-            shap_df["Absolute Impact"] = np.abs(shap_df["Impact"])
-            shap_df = shap_df.sort_values(by="Absolute Impact", ascending=True)
+            shap_df["AbsImpact"] = np.abs(shap_df["Impact"])
+            shap_df = shap_df.sort_values(by="AbsImpact", ascending=True)
 
-            st.dataframe(shap_df[["Feature", "Impact"]].style.format({"Impact": "{:.5f}"}))
+            st.dataframe(
+                shap_df[["Feature", "Impact"]]
+                .style.format({"Impact": "{:.5f}"})
+            )
 
             fig3, ax3 = plt.subplots()
             ax3.barh(shap_df["Feature"], shap_df["Impact"])
             ax3.set_xlabel("SHAP Impact")
-            ax3.set_title("Feature Contribution to Prediction")
+            ax3.set_title("Feature Contribution")
             st.pyplot(fig3)
 
         else:
-            st.warning("SHAP explanation unavailable due to shape mismatch.")
+            st.warning("SHAP explanation unavailable.")
 
     except Exception as e:
         st.error("Error occurred during prediction.")

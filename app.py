@@ -9,9 +9,9 @@ from urllib.parse import urlparse
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score
 from sklearn.model_selection import train_test_split
 
-# -----------------------------------
-# Page Config
-# -----------------------------------
+# --------------------------------------------------
+# Page Configuration
+# --------------------------------------------------
 st.set_page_config(
     page_title="Phishing URL Detector",
     page_icon="🔐",
@@ -19,16 +19,20 @@ st.set_page_config(
 )
 
 st.title("🔐 Phishing URL Detection System")
-st.markdown("Machine Learning based phishing URL classifier with explainability")
+st.markdown("Machine Learning-based phishing URL classifier with explainability")
 
-# -----------------------------------
+# --------------------------------------------------
 # Load Model
-# -----------------------------------
-rf = joblib.load("phishing_rf_model.pkl")
+# --------------------------------------------------
+@st.cache_resource
+def load_model():
+    return joblib.load("phishing_rf_model.pkl")
 
-# -----------------------------------
-# Feature Extraction Function
-# -----------------------------------
+rf = load_model()
+
+# --------------------------------------------------
+# Feature Extraction
+# --------------------------------------------------
 def extract_features(url):
 
     features = []
@@ -58,14 +62,14 @@ def extract_features(url):
     return features
 
 
-# -----------------------------------
-# Prediction Section
-# -----------------------------------
+# --------------------------------------------------
+# URL Prediction Section
+# --------------------------------------------------
 st.subheader("🔎 Test a URL")
 
 user_input = st.text_input("Enter URL here:")
 
-if st.button("Check URL"):
+if st.button("Check URL") and user_input:
 
     features = extract_features(user_input)
     features = np.array(features).reshape(1, -1)
@@ -78,46 +82,63 @@ if st.button("Check URL"):
     else:
         st.success("✅ Safe URL")
 
-    st.write("Confidence Score:", round(probability, 4))
+    st.write("Confidence Score:", round(float(probability), 4))
 
 
-# -----------------------------------
+# --------------------------------------------------
 # Model Evaluation Section
-# -----------------------------------
+# --------------------------------------------------
 st.subheader("📊 Model Performance")
 
-df = pd.read_csv("dataset.csv")
+try:
+    df = pd.read_csv("dataset.csv")
 
-X = np.array(df['url'].apply(extract_features).tolist())
-y = df['label'].values
+    X = np.array(df['url'].apply(extract_features).tolist())
+    y = df['label'].values
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
 
-y_pred = rf.predict(X_test)
+    y_pred = rf.predict(X_test)
 
-accuracy = accuracy_score(y_test, y_pred)
-st.write("Model Accuracy:", round(accuracy, 4))
+    accuracy = accuracy_score(y_test, y_pred)
+    st.write("Model Accuracy:", round(float(accuracy), 4))
 
-# Confusion Matrix
-cm = confusion_matrix(y_test, y_pred)
+    # Confusion Matrix
+    cm = confusion_matrix(y_test, y_pred)
 
-fig_cm, ax = plt.subplots()
-disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-disp.plot(ax=ax)
-st.pyplot(fig_cm)
+    fig_cm, ax = plt.subplots()
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot(ax=ax)
+    st.pyplot(fig_cm)
+
+except Exception:
+    st.warning("Could not compute model evaluation metrics.")
 
 
-# -----------------------------------
-# SHAP Explainability
-# -----------------------------------
+# --------------------------------------------------
+# SHAP Explainability Section
+# --------------------------------------------------
 st.subheader("🧠 SHAP Feature Importance")
 
-explainer = shap.TreeExplainer(rf)
-sample = X_test[:200]
-shap_values = explainer.shap_values(sample)
+try:
+    explainer = shap.TreeExplainer(rf)
 
-fig_shap = plt.figure()
-shap.summary_plot(shap_values[1], sample, show=False)
-st.pyplot(fig_shap)
+    # Use small sample for performance
+    sample = X_test[:100]
+
+    shap_values = explainer.shap_values(sample)
+
+    # Handle both SHAP formats safely
+    if isinstance(shap_values, list):
+        shap_values_to_plot = shap_values[1]
+    else:
+        shap_values_to_plot = shap_values
+
+    fig_shap = plt.figure()
+    shap.summary_plot(shap_values_to_plot, sample, show=False)
+    st.pyplot(fig_shap)
+
+except Exception:
+    st.warning("SHAP visualization temporarily unavailable.")

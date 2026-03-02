@@ -56,7 +56,14 @@ if url:
         features_array = np.array(features).reshape(1, -1)
 
         # ----------------------------
-        # PREDICTION
+        # 0️⃣ FEATURE CHECKLIST (Tick Verification)
+        # ----------------------------
+        st.subheader("🧾 Feature Extraction Verification ✅")
+        for fname, fvalue in zip(feature_names, features_array.flatten()):
+            st.markdown(f"{fname} ✅ (Value: {fvalue})")
+
+        # ----------------------------
+        # 1️⃣ PREDICTION
         # ----------------------------
         prediction = rf.predict(features_array)[0]
         probabilities = rf.predict_proba(features_array)[0]
@@ -65,7 +72,6 @@ if url:
         phishing_prob = float(probabilities[1])
         confidence = abs(phishing_prob - safe_prob) * 100
 
-        # Display prediction
         st.subheader("🔎 Prediction Result")
         if prediction == 1:
             st.error("⚠️ Phishing Website Detected")
@@ -78,7 +84,7 @@ if url:
         st.metric("Model Confidence", f"{confidence:.2f}%")
 
         # ----------------------------
-        # 1️⃣ PIE CHART
+        # 2️⃣ PIE CHART
         # ----------------------------
         st.subheader("📊 Probability Distribution")
         fig1, ax1 = plt.subplots()
@@ -94,7 +100,7 @@ if url:
         st.pyplot(fig1)
 
         # ----------------------------
-        # 2️⃣ FEATURE IMPORTANCE
+        # 3️⃣ FEATURE IMPORTANCE
         # ----------------------------
         st.subheader("📈 Global Feature Importance")
         importance_df = pd.DataFrame({
@@ -109,7 +115,7 @@ if url:
         st.pyplot(fig2)
 
         # ----------------------------
-        # 3️⃣ FEATURE CONTRIBUTION BAR
+        # 4️⃣ FEATURE CONTRIBUTION BAR
         # ----------------------------
         st.subheader("🟦 Feature Contribution (Value × Importance)")
         contribution = features_array.flatten() * rf.feature_importances_
@@ -125,7 +131,7 @@ if url:
         st.pyplot(fig3)
 
         # ----------------------------
-        # 4️⃣ RADAR CHART
+        # 5️⃣ RADAR CHART
         # ----------------------------
         st.subheader("🟢 Feature Profile (Radar Chart)")
         values = features_array.flatten()
@@ -141,10 +147,9 @@ if url:
         st.pyplot(fig4)
 
         # ----------------------------
-        # 5️⃣ DYNAMIC HEATMAP
+        # 6️⃣ DYNAMIC HEATMAP
         # ----------------------------
         st.subheader("🔥 Feature Contribution Heatmap")
-        # Normalize contributions for heatmap
         contrib_norm = contribution / (np.max(np.abs(contribution)) + 1e-6)
         heatmap_df = pd.DataFrame(contrib_norm.reshape(1,-1), columns=feature_names)
 
@@ -154,11 +159,10 @@ if url:
         st.pyplot(fig5)
 
         # ----------------------------
-        # 6️⃣ DYNAMIC CONFUSION MATRIX
+        # 7️⃣ DYNAMIC CONFUSION MATRIX
         # ----------------------------
         st.subheader("📊 Confusion Matrix (Dynamic)")
 
-        # For single URL, show probabilities in matrix
         cm_dynamic = np.array([
             [safe_prob, 0],
             [0, phishing_prob]

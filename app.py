@@ -2,8 +2,8 @@ import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-import shap
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.metrics import confusion_matrix
 
 # ----------------------------
@@ -18,7 +18,7 @@ st.title("🔐 AI-Based Phishing URL Detection System")
 rf = joblib.load("phishing_rf_model.pkl")
 
 # ----------------------------
-# FEATURE EXTRACTION (9 FEATURES ONLY)
+# FEATURE EXTRACTION (9 FEATURES)
 # ----------------------------
 def extract_features(url):
     return [
@@ -63,11 +63,9 @@ if url:
 
         safe_prob = float(probabilities[0])
         phishing_prob = float(probabilities[1])
-
         confidence = abs(phishing_prob - safe_prob) * 100
 
         st.subheader("🔎 Prediction Result")
-
         if prediction == 1:
             st.error("⚠️ Phishing Website Detected")
         else:
@@ -76,14 +74,12 @@ if url:
         col1, col2 = st.columns(2)
         col1.metric("Safe Probability", f"{safe_prob*100:.2f}%")
         col2.metric("Phishing Probability", f"{phishing_prob*100:.2f}%")
-
         st.metric("Model Confidence", f"{confidence:.2f}%")
 
         # ----------------------------
-        # PIE CHART
+        # 1️⃣ PIE CHART
         # ----------------------------
         st.subheader("📊 Probability Distribution")
-
         fig1, ax1 = plt.subplots()
         ax1.pie(
             [safe_prob, phishing_prob],
@@ -97,10 +93,9 @@ if url:
         st.pyplot(fig1)
 
         # ----------------------------
-        # FEATURE IMPORTANCE
+        # 2️⃣ FEATURE IMPORTANCE
         # ----------------------------
         st.subheader("📈 Model Feature Importance")
-
         importance_df = pd.DataFrame({
             "Feature": feature_names,
             "Importance": rf.feature_importances_
@@ -113,86 +108,72 @@ if url:
         st.pyplot(fig2)
 
         # ----------------------------
-        # SHAP EXPLANATION (FINAL ROBUST)
+        # 3️⃣ FEATURE CONTRIBUTION BAR (Value × Importance)
         # ----------------------------
-        st.subheader("🧠 SHAP Explanation (Why this prediction?)")
+        st.subheader("🟦 Feature Contribution (Value × Importance)")
+        contribution = features_array.flatten() * rf.feature_importances_
+        contrib_df = pd.DataFrame({
+            "Feature": feature_names,
+            "Contribution": contribution
+        }).sort_values(by="Contribution", ascending=True)
 
-        try:
-            # Use TreeExplainer with probability output to avoid 0-length SHAP
-            explainer = shap.TreeExplainer(rf, model_output="probability")
-            shap_values = explainer.shap_values(features_array)
+        fig3, ax3 = plt.subplots()
+        ax3.barh(contrib_df["Feature"], contrib_df["Contribution"], color="#3498db")
+        ax3.set_xlabel("Feature Contribution")
+        ax3.set_title("Feature Contribution to Prediction")
+        st.pyplot(fig3)
 
-            # Binary classification handling
-            if isinstance(shap_values, list):
-                # Old SHAP versions: list of arrays [class0, class1]
-                shap_vals = shap_values[prediction][0]  # predicted class, first sample
-            else:
-                # New SHAP versions: single array
-                shap_vals = shap_values[0]  # first sample
-                # If concatenated for both classes
-                if shap_vals.size == 2 * len(feature_names):
-                    shap_vals = shap_vals[prediction * len(feature_names):(prediction+1)*len(feature_names)]
+        # ----------------------------
+        # 4️⃣ RADAR CHART OF FEATURE VALUES
+        # ----------------------------
+        st.subheader("🟢 Feature Profile (Radar Chart)")
+        values = features_array.flatten()
+        angles = np.linspace(0, 2 * np.pi, len(feature_names), endpoint=False)
+        values_loop = np.concatenate((values, [values[0]]))
+        angles_loop = np.concatenate((angles, [angles[0]]))
 
-            shap_vals = shap_vals.flatten()
+        fig4, ax4 = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
+        ax4.plot(angles_loop, values_loop, 'o-', linewidth=2)
+        ax4.fill(angles_loop, values_loop, alpha=0.25)
+        ax4.set_thetagrids(angles * 180/np.pi, feature_names)
+        ax4.set_title("Feature Profile of URL")
+        st.pyplot(fig4)
 
-            # Safety check
-            if len(shap_vals) != len(feature_names):
-                st.warning(f"SHAP explanation unavailable (expected {len(feature_names)} features, got {len(shap_vals)}).")
-            else:
-                shap_df = pd.DataFrame({
-                    "Feature": feature_names,
-                    "Impact on Prediction": shap_vals
-                })
-                shap_df["Absolute Impact"] = np.abs(shap_df["Impact on Prediction"])
-                shap_df = shap_df.sort_values(by="Absolute Impact", ascending=True)
+        # ----------------------------
+        # 5️⃣ HEATMAP OF FEATURE CONTRIBUTION
+        # ----------------------------
+        st.subheader("🔥 Feature Contribution Heatmap")
+        contrib_df_plot = contrib_df.set_index("Feature").T
+        fig5, ax5 = plt.subplots()
+        sns.heatmap(contrib_df_plot, annot=True, cmap="RdYlGn_r", cbar=True, ax=ax5)
+        ax5.set_title("Feature Contribution Heatmap")
+        st.pyplot(fig5)
 
-                st.dataframe(
-                    shap_df[["Feature", "Impact on Prediction"]]
-                    .style.format({"Impact on Prediction": "{:.6f}"})
-                )
+        # ----------------------------
+        # 6️⃣ DYNAMIC CONFUSION MATRIX
+        # ----------------------------
+        st.subheader("📊 Confusion Matrix (Demo)")
+        # Let user select actual label for demo
+        actual_label = st.selectbox("Select actual label for demo:", ["Safe", "Phishing"])
+        actual = 0 if actual_label == "Safe" else 1
 
-                fig3, ax3 = plt.subplots()
-                ax3.barh(
-                    shap_df["Feature"],
-                    shap_df["Impact on Prediction"],
-                    color=np.where(shap_df["Impact on Prediction"]>0, "#e74c3c", "#2ecc71")
-                )
-                ax3.set_xlabel("SHAP Value Impact")
-                ax3.set_title("Feature Contribution for This URL")
-                st.pyplot(fig3)
+        cm_demo = np.zeros((2,2), dtype=int)
+        cm_demo[actual, prediction] = 1  # predicted cell
 
-        except Exception as shap_error:
-            st.warning("SHAP explanation could not be generated.")
-            st.write(shap_error)
+        fig_cm, ax_cm = plt.subplots()
+        ax_cm.imshow(cm_demo, cmap="Blues")
+        ax_cm.set_xticks([0,1])
+        ax_cm.set_yticks([0,1])
+        ax_cm.set_xticklabels(["Safe","Phishing"])
+        ax_cm.set_yticklabels(["Safe","Phishing"])
+        for i in range(2):
+            for j in range(2):
+                ax_cm.text(j,i,cm_demo[i,j],ha="center",va="center",fontsize=14)
+        ax_cm.set_xlabel("Predicted")
+        ax_cm.set_ylabel("Actual")
+        ax_cm.set_title("Confusion Matrix (Demo)")
+        st.pyplot(fig_cm)
 
     except Exception as e:
         st.error("Error occurred during prediction.")
         st.write(e)
-
-# ----------------------------
-# CONFUSION MATRIX (STATIC DEMO)
-# ----------------------------
-st.subheader("📊 Model Confusion Matrix")
-
-y_true = [0, 0, 1, 1, 0, 1, 0, 1]
-y_pred = [0, 0, 1, 1, 0, 1, 0, 1]
-
-cm = confusion_matrix(y_true, y_pred)
-
-fig4, ax4 = plt.subplots()
-ax4.imshow(cm, cmap="Blues")
-
-ax4.set_xticks([0, 1])
-ax4.set_yticks([0, 1])
-ax4.set_xticklabels(["Safe", "Phishing"])
-ax4.set_yticklabels(["Safe", "Phishing"])
-
-for i in range(2):
-    for j in range(2):
-        ax4.text(j, i, cm[i, j], ha="center", va="center", fontsize=14)
-
-ax4.set_xlabel("Predicted")
-ax4.set_ylabel("Actual")
-ax4.set_title("Confusion Matrix")
-
-st.pyplot(fig4)

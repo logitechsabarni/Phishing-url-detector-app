@@ -113,22 +113,22 @@ if url:
         st.pyplot(fig2)
 
         # ----------------------------
-        # SHAP EXPLANATION (FINAL ROBUST)
+        # SHAP EXPLANATION (FINAL WORKING)
         # ----------------------------
         st.subheader("🧠 SHAP Explanation (Why this prediction?)")
 
         try:
-            # Use TreeExplainer with probability output to avoid 0-length SHAP
-            explainer = shap.TreeExplainer(rf, model_output="probability")
+            # TreeExplainer with feature_perturbation="tree_path_dependent" (default)
+            explainer = shap.TreeExplainer(rf, feature_perturbation="tree_path_dependent")
             shap_values = explainer.shap_values(features_array)
 
-            # Binary classification handling
+            # Handle binary classifier
             if isinstance(shap_values, list):
                 # Old SHAP versions: list of arrays [class0, class1]
                 shap_vals = shap_values[prediction][0]  # predicted class, first sample
             else:
-                # New SHAP versions: single array
-                shap_vals = shap_values[0]  # first sample
+                # Single array
+                shap_vals = shap_values[0]
                 # If concatenated for both classes
                 if shap_vals.size == 2 * len(feature_names):
                     shap_vals = shap_vals[prediction * len(feature_names):(prediction+1)*len(feature_names)]

@@ -113,40 +113,49 @@ if url:
         st.pyplot(fig2)
 
         # ----------------------------
-        # SHAP EXPLANATION (ROBUST)
+        # SHAP EXPLANATION (FINAL ROBUST)
         # ----------------------------
         st.subheader("🧠 SHAP Explanation (Why this prediction?)")
 
         try:
-            # Use TreeExplainer for RandomForest
             explainer = shap.TreeExplainer(rf)
             shap_values = explainer.shap_values(features_array)
 
-            # shap_values is a list: [class 0 array, class 1 array]
-            # pick the class predicted by the model
-            shap_vals = shap_values[prediction][0]  # first (and only) sample
+            # Robust handling for binary classifier outputs
+            if isinstance(shap_values, list):
+                # List of arrays (old SHAP versions)
+                shap_vals = shap_values[prediction][0]  # predicted class, first sample
+            else:
+                # Single array (new SHAP versions)
+                shap_vals = shap_values[0]  # first sample
 
-            shap_df = pd.DataFrame({
-                "Feature": feature_names,
-                "Impact on Prediction": shap_vals
-            })
-            shap_df["Absolute Impact"] = np.abs(shap_df["Impact on Prediction"])
-            shap_df = shap_df.sort_values(by="Absolute Impact", ascending=True)
+            shap_vals = shap_vals.flatten()
 
-            st.dataframe(
-                shap_df[["Feature", "Impact on Prediction"]]
-                .style.format({"Impact on Prediction": "{:.6f}"})
-            )
+            # Safety check
+            if len(shap_vals) != len(feature_names):
+                st.warning(f"SHAP explanation unavailable (expected {len(feature_names)} features, got {len(shap_vals)}).")
+            else:
+                shap_df = pd.DataFrame({
+                    "Feature": feature_names,
+                    "Impact on Prediction": shap_vals
+                })
+                shap_df["Absolute Impact"] = np.abs(shap_df["Impact on Prediction"])
+                shap_df = shap_df.sort_values(by="Absolute Impact", ascending=True)
 
-            fig3, ax3 = plt.subplots()
-            ax3.barh(
-                shap_df["Feature"],
-                shap_df["Impact on Prediction"],
-                color=np.where(shap_df["Impact on Prediction"]>0, "#e74c3c", "#2ecc71")
-            )
-            ax3.set_xlabel("SHAP Value Impact")
-            ax3.set_title("Feature Contribution for This URL")
-            st.pyplot(fig3)
+                st.dataframe(
+                    shap_df[["Feature", "Impact on Prediction"]]
+                    .style.format({"Impact on Prediction": "{:.6f}"})
+                )
+
+                fig3, ax3 = plt.subplots()
+                ax3.barh(
+                    shap_df["Feature"],
+                    shap_df["Impact on Prediction"],
+                    color=np.where(shap_df["Impact on Prediction"]>0, "#e74c3c", "#2ecc71")
+                )
+                ax3.set_xlabel("SHAP Value Impact")
+                ax3.set_title("Feature Contribution for This URL")
+                st.pyplot(fig3)
 
         except Exception as shap_error:
             st.warning("SHAP explanation could not be generated.")
